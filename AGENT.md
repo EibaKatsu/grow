@@ -211,3 +211,11 @@ Garmin Forerunner 255向けの Connect IQ **Device App（Watch App）**を作る
   - `applyXp(state, xp_gain, today)`
 - API取得値は必ずnullガード
 - 状態が変わったときのみStorageに保存
+
+---
+
+## 開発進行方針
+- まずはConnect IQ開発環境を構築し、Forerunner 255向けにビルド・起動できる状態を最優先で作る
+- その後は機能を一度に作り込まず、最小単位で実装して都度動作確認する
+- 追加順は「起動確認 → 歩数表示 → XP反映 → 日次1回制御 → レベルアップ → Glance連携」を基本とする
+- 各段階で手動テスト項目を更新し、通過を確認してから次の機能へ進む

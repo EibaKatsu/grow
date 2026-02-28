@@ -1,14 +1,15 @@
 # AGENT.md — Garmin Connect IQ「デイリー歩数モンスター」（Forerunner 255）
 
 ## 目的
-Garmin Forerunner 255向けの Connect IQ **ウィジェット**を作る。  
+Garmin Forerunner 255向けの Connect IQ **Device App（Watch App）**を作る。  
 **今日の歩数だけ**を元に「小さな怪物」が**毎日育つ**。成長の暴走を防ぐため、歩数から換算した“分”は **1日60分を上限**とする。  
-ユーザーは毎日ウィジェットを開いて「エサやり（反映）」を1回行い、成長を実感できる。
+ユーザーは毎日アプリを開いて（またはGlanceから遷移して）「エサやり（反映）」を1回行い、成長を実感できる。
 
 ## 対象プラットフォーム
 - Garmin **Connect IQ**（Monkey C）
 - 対象デバイス：**Forerunner 255,260,570,他**
-- アプリ種別：**Widget（ウィジェット）**
+- アプリ種別：**Device App（Watch App）**
+- Glance：**実装する**（一覧で当日の進捗を即確認）
 - スマホ連携・通信なし（Webリクエストなし）
 
 ---
@@ -41,7 +42,7 @@ Garmin Forerunner 255向けの Connect IQ **ウィジェット**を作る。
 
 ### 1日1回の反映ルール
 - 同じ日付に対して、XPを反映できるのは **1回だけ**
-- 同日に何度ウィジェットを開いても、2回目以降は加算しない
+- 同日に何度アプリを開いても、2回目以降は加算しない
 
 ---
 
@@ -94,6 +95,15 @@ Garmin Forerunner 255向けの Connect IQ **ウィジェット**を作る。
 - `Lv {level}`
 - `次まで: {need_xp(level) - xp_in_level} XP`
 
+### Glance（一覧表示）
+表示する要素：
+- 怪物アイコン（ステージ）
+- `今日: {minutes_today}/60`
+- `Lv {level}`
+
+操作：
+- Glance選択でメイン画面へ遷移
+
 ### 気分（演出のみ）
 `minutes_today` により決定（反映済みかどうかとは独立）：
 - 0分：しょんぼり
@@ -126,7 +136,7 @@ Garmin Forerunner 255向けの Connect IQ **ウィジェット**を作る。
 
 ## 非ゴール
 - 位置共有、マルチプレイ
-- Garmin Connect（スマホアプリ）内へのウィジェット追加
+- Garmin Connect（スマホアプリ）側ホーム画面連携
 - ネットワーク通信
 - アクティビティ記録（FIT recording）
 - 心拍やGPSを使った高度な推定
@@ -139,10 +149,12 @@ Garmin Forerunner 255向けの Connect IQ **ウィジェット**を作る。
 - ストレージ：`Toybox.Application.Storage`
 - 日付：`Toybox.Time`
 - UI：`Toybox.WatchUi` / `Toybox.Graphics`
+- Glance：`Toybox.WatchUi`（Glance関連クラス）
 
 ### 推奨構成（例）
 - `source/App.mc`：エントリ
-- `source/WidgetView.mc`：表示と入力処理
+- `source/DeviceAppView.mc`：メイン画面の表示と入力処理
+- `source/GlanceView.mc`：Glance表示
 - `source/Model.mc`：状態・成長ロジック（純粋関数寄り）
 - `source/DateUtil.mc`：YYYYMMDD変換
 - `resources/drawables/`：スプライト
@@ -158,21 +170,23 @@ Garmin Forerunner 255向けの Connect IQ **ウィジェット**を作る。
 ---
 
 ## 受け入れ条件（Acceptance Criteria）
-1. Forerunner 255でインストール・起動できる
-2. メイン画面に以下が表示される：
+1. Forerunner 255でDevice Appとしてインストール・起動できる
+2. Glanceに「今日の分 / Lv」が表示され、選択でメイン画面へ遷移できる
+3. メイン画面に以下が表示される：
    - 怪物スプライト
    - 今日の分（steps/100、上限60）
    - レベル
    - 次レベルまでの残りXP
-3. STARTで「エサやり」すると、当日分XPが **1回だけ**反映される
-4. 同日に2回目のSTARTは加算されず、メッセージが出る
-5. 日付が変わると翌日は再びエサやり可能になる
-6. 1回のエサやりで複数レベルアップが発生しても正しく処理できる
-7. 歩数が取得できない場合でもクラッシュせず0扱いで動く
+4. STARTで「エサやり」すると、当日分XPが **1回だけ**反映される
+5. 同日に2回目のSTARTは加算されず、メッセージが出る
+6. 日付が変わると翌日は再びエサやり可能になる
+7. 1回のエサやりで複数レベルアップが発生しても正しく処理できる
+8. 歩数が取得できない場合でもクラッシュせず0扱いで動く
 
 ---
 
 ## 手動テスト項目
+- Glanceに `今日: X/60` と `Lv` が出ること、選択でメイン画面へ遷移すること
 - steps=0 → minutes=0、反映しても変化なし
 - steps=100 → minutes=1、+1XP、同日2回目はブロック
 - steps=6000 → minutes=60（上限到達）、+60XP

@@ -1,0 +1,6 @@
+{
+  "monkeyC.sdkPath": "${env:CONNECTIQ_HOME}",
+  "monkeyC.jungleFiles": "monkey.jungle",
+  "monkeyC.developerKeyPath": "/Users/eibakatsu/Documents/codex/grow/.vscode/developer_key",
+  "monkeyC.testDevices": []
+}

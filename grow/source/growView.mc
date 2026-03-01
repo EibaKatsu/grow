@@ -1,4 +1,6 @@
 import Toybox.Activity;
+import Toybox.Lang;
+import Toybox.Time;
 import Toybox.WatchUi;
 
 class growView extends WatchUi.SimpleDataField {

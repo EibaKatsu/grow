@@ -25,6 +25,7 @@ class growView extends WatchUi.SimpleDataField {
     private var _slopeState as String;
     private var _lastKmEvent as Float;
     private var _lastSeenDistanceKm as Float?;
+    private var _distEventCount as Number;
     private var _displayMessage as String;
     private var _lastMessageUpdateMs as Number?;
     private var _recentMessages as Array<String>;
@@ -38,6 +39,7 @@ class growView extends WatchUi.SimpleDataField {
         _slopeState = "FL";
         _lastKmEvent = 0.0f;
         _lastSeenDistanceKm = null;
+        _distEventCount = 0;
         _displayMessage = "Grow";
         _lastMessageUpdateMs = null;
         _recentMessages = [] as Array<String>;
@@ -263,53 +265,123 @@ class growView extends WatchUi.SimpleDataField {
                 return pickFixedMessage(stateKey);
             case "WARN":
                 if (idx == 0) {
-                    return "Ease up now";
+                    return "今は落とそう";
                 } else if (idx == 1) {
-                    return "Too hot, reset";
+                    return "熱すぎる、整え";
                 }
-                return "Control first";
+                return "制御優先で";
             case "FUNNY":
                 if (idx == 0) {
-                    return "Keep it light";
+                    return "気楽にいこう";
                 } else if (idx == 1) {
-                    return "Relax your face";
+                    return "顔の力ぬいて";
                 }
-                return "Smile and flow";
+                return "笑って流そう";
             case "SALT":
                 if (idx == 0) {
-                    return "Stay sharp";
+                    return "集中きらすな";
                 } else if (idx == 1) {
-                    return "Check your pace";
+                    return "ペース見直し";
                 }
-                return "Lock the rhythm";
+                return "リズム固定で";
             case "ALCOHOL":
                 if (idx == 0) {
-                    return "Water first";
+                    return "まずは水やで";
                 } else if (idx == 1) {
-                    return "No bar legs";
+                    return "フラつく走りはいらん";
                 }
-                return "Sip and move";
+                return "ちび水で進め";
             case "TOXIC":
                 if (idx == 0) {
-                    return "No excuses";
+                    return "言い訳なしで";
                 } else if (idx == 1) {
-                    return "You can do more";
+                    return "まだいける";
                 }
-                return "Stay in it";
+                return "折れずにいけ";
             case "PRAISE":
                 if (idx == 0) {
-                    return "Strong work";
+                    return "ようやってる";
                 } else if (idx == 1) {
-                    return "Great control";
+                    return "制御うまい";
                 }
-                return "Nice discipline";
+                return "ええ我慢や";
         }
 
         return pickFixedMessage(stateKey);
     }
 
-    private function buildDistanceEventMessage(markerKm as Float) as String {
-        return "DIST " + markerKm.toString() + "km";
+    private function formatDistanceMarker(markerKm as Float) as String {
+        var scaled = ((markerKm * 10.0f) + 0.5f).toNumber();
+        var whole = scaled / 10;
+        var decimal = scaled % 10;
+
+        if (decimal == 0) {
+            return whole.toString();
+        }
+
+        return whole.toString() + "." + decimal.toString();
+    }
+
+    private function distanceMessagesForKey(markerKey as String) as Array<String> or Null {
+        switch (markerKey) {
+            case "1": return ["1キロ突破やで。ええ入り！", "1キロやん。肩の力ぬこ"];
+            case "2": return ["2キロ。まだ余裕あるやろ", "2キロ到達。ええペースやん"];
+            case "3": return ["3キロ。リズムそのままやで", "3キロ、ええ感じに温まったな"];
+            case "4": return ["4キロ。焦らんでええよ", "4キロ。呼吸、ゆったりな"];
+            case "5": return ["もう5キロやん、早っ！", "5キロ到達。余裕顔いけるで", "5キロ。ここからが本番やな"];
+            case "6": return ["6キロ。ええ流れ続いてるで", "6キロ。力みゼロでいこ"];
+            case "7": return ["7キロ。ピッチだけ意識な", "7キロ。顔、ゆるめとこ"];
+            case "8": return ["8キロ。ええやん、その安定感", "8キロ。淡々が最強やで"];
+            case "9": return ["9キロ。次で10や、落ち着け", "9キロ。呼吸深うな"];
+            case "10": return ["10キロ到達。調子ええな", "10キロ。まだまだいけるやろ", "10キロ。水いこ、水"];
+            case "11": return ["11キロ。まだ序盤の顔でいこ", "11キロ。今は温存やで"];
+            case "12": return ["12キロ。リズム勝ちやな", "12キロ。肩、落としてこ"];
+            case "13": return ["13キロ。ええ感じにしんどいな", "13キロ。雑にならんで"];
+            case "14": return ["14キロ。足、回すだけでええ", "14キロ。次、15やで"];
+            case "15": return ["15キロ。ええ積み上げやで", "15キロ。足、よう動いとる", "15キロ。ここは丁寧にいこ"];
+            case "16": return ["16キロ。ここで焦らんとこ", "16キロ。淡々続けよ"];
+            case "17": return ["17キロ。ええやん、粘れてる", "17キロ。水、そろそろやで"];
+            case "18": return ["18キロ。フォーム、きれいめ意識", "18キロ。余計な力いらん"];
+            case "19": return ["19キロ。20見えた、落ち着こ", "19キロ。呼吸、整えよ"];
+            case "20": return ["20キロ。半分見えてきたで", "20キロ。焦らず貯金や", "20キロ。いったん整えよ"];
+            case "21": return ["21キロ。次でハーフやで", "21キロ。落ち着いて刻も"];
+            case "21.1": return ["ハーフ超えた！ここから味や", "21.1。後半戦、入るで", "ハーフ通過。落ち着いていこ"];
+            case "22": return ["22キロ。ここから大人の走りや", "22キロ。上げんでええで"];
+            case "23": return ["23キロ。一定、一定やで", "23キロ。心拍、暴れたらアカン"];
+            case "24": return ["24キロ。まだいける、まだいける", "24キロ。足、丁寧にな"];
+            case "25": return ["25キロ。ここで雑にならんとこ", "25キロ。補給、忘れてへん？", "25キロ。えらい、ほんまえらい"];
+            case "26": return ["26キロ。しんどいの普通やで", "26キロ。呼吸、深う"];
+            case "27": return ["27キロ。今は守りで勝つ", "27キロ。水いこ、水"];
+            case "28": return ["28キロ。焦らん。淡々や", "28キロ。腕、軽く振ろ"];
+            case "29": return ["29キロ。次で30や、整えよ", "29キロ。フォーム戻そか"];
+            case "30": return ["30キロ。ここ踏ん張れたら勝ちや", "30キロ。勝負どころ来たで", "30キロ。呼吸整えて、いこ"];
+            case "31": return ["31キロ。いまが踏ん張り所や", "31キロ。崩れんでええ"];
+            case "32": return ["32キロ。無理せんで強いぞ", "32キロ。呼吸からやで"];
+            case "33": return ["33キロ。雑になりやすい、注意", "33キロ。足音、静かに"];
+            case "34": return ["34キロ。あと少しずつ、刻も", "34キロ。ここ耐えよ"];
+            case "35": return ["35キロ。ようやっとる、マジで", "35キロ。崩れんでええで", "35キロ。あと少しずつや"];
+            case "36": return ["36キロ。えらい、ほんまに", "36キロ。いったん整えよ"];
+            case "37": return ["37キロ。いま勝ってるで", "37キロ。崩れたら戻そ"];
+            case "38": return ["38キロ。小さく攻めよ", "38キロ。呼吸、落ち着け"];
+            case "39": return ["39キロ。次で40、いける", "39キロ。あとちょいずつ"];
+            case "40": return ["40キロ。あとちょい、いこ", "40キロ。もうゴール見えてるで", "40キロ。最後、丁寧にな"];
+            case "41": return ["41キロ。あと1キロやで！", "41キロ。最後、丁寧にいこ"];
+            case "42": return ["42キロ。あと200m、いける！", "42キロ。ラスト刻め！"];
+            case "42.2": return ["完走や！ほんまにやったな", "42.2。えぐい。拍手やで", "ゴール！今日の主役、きみや"];
+        }
+
+        return null;
+    }
+
+    private function buildDistanceEventMessage(markerKm as Float, eventCount as Number) as String {
+        var markerKey = formatDistanceMarker(markerKm);
+        var messages = distanceMessagesForKey(markerKey);
+        if (messages != null && messages.size() > 0) {
+            var idx = eventCount % messages.size();
+            return messages[idx];
+        }
+
+        return markerKey + "km 通過";
     }
 
     private function detectDistanceEvent(elapsedDistance as Float?) as String or Null {
@@ -321,6 +393,7 @@ class growView extends WatchUi.SimpleDataField {
         if (_lastSeenDistanceKm != null && (distanceKm + DIST_EVENT_TOLERANCE_KM) < _lastSeenDistanceKm) {
             // Activity restarted or playback seeked back.
             _lastKmEvent = 0.0f;
+            _distEventCount = 0;
         }
         _lastSeenDistanceKm = distanceKm;
 
@@ -346,7 +419,8 @@ class growView extends WatchUi.SimpleDataField {
 
         if (crossedMarker > _lastKmEvent) {
             _lastKmEvent = crossedMarker;
-            return buildDistanceEventMessage(crossedMarker);
+            _distEventCount += 1;
+            return buildDistanceEventMessage(crossedMarker, _distEventCount);
         }
 
         return null;
@@ -458,38 +532,38 @@ class growView extends WatchUi.SimpleDataField {
     private function pickFixedMessage(stateKey as String) as String {
         switch (stateKey) {
             case "UP_Z1":
-                return "Save on climbs";
+                return "上り温存で";
             case "UP_Z2":
-                return "Use your arms";
+                return "腕で押そう";
             case "UP_Z3":
-                return "Pull with arms";
+                return "腕振り強め";
             case "UP_Z4":
-                return "Ease up now";
+                return "少し落とそう";
             case "UP_Z5":
-                return "Back off now";
+                return "今は下げる";
             case "FL_Z1":
-                return "Easy and smooth";
+                return "楽に滑らか";
             case "FL_Z2":
-                return "Hold target pace";
+                return "目標ペース";
             case "FL_Z3":
-                return "Deep breaths";
+                return "深く呼吸";
             case "FL_Z4":
-                return "Too fast, relax";
+                return "速い、落ち着け";
             case "FL_Z5":
-                return "Slow down once";
+                return "一段下げよう";
             case "DN_Z1":
-                return "Form on downhill";
+                return "下りも丁寧";
             case "DN_Z2":
-                return "Soft landing";
+                return "接地やわらかく";
             case "DN_Z3":
-                return "Dont over-speed";
+                return "下り飛ばしすぎ";
             case "DN_Z4":
-                return "Over pace";
+                return "オーバーペース";
             case "DN_Z5":
-                return "Danger, back off";
+                return "危険、下げて";
         }
 
-        return "Waiting HR";
+        return "心拍待ち";
     }
 
     function compute(info as Activity.Info) as Numeric or Duration or String or Null {

@@ -23,7 +23,7 @@ class growView extends WatchUi.SimpleDataField {
     private var _lastSeenDistanceKm as Float?;
     private var _displayMessage as String;
     private var _lastMessageUpdateMs as Number?;
-    private var _recentMessages;
+    private var _recentMessages as Array<String>;
 
     function initialize() {
         SimpleDataField.initialize();
@@ -35,7 +35,7 @@ class growView extends WatchUi.SimpleDataField {
         _lastSeenDistanceKm = null;
         _displayMessage = "Grow";
         _lastMessageUpdateMs = null;
-        _recentMessages = [];
+        _recentMessages = [] as Array<String>;
     }
 
     private function zoneFromHeartRate(heartRate as Number?) as String {
@@ -304,8 +304,13 @@ class growView extends WatchUi.SimpleDataField {
         }
 
         _recentMessages.add(message);
-        while (_recentMessages.size() > RECENT_MESSAGE_WINDOW) {
-            _recentMessages.remove(0);
+        if (_recentMessages.size() > RECENT_MESSAGE_WINDOW) {
+            var start = _recentMessages.size() - RECENT_MESSAGE_WINDOW;
+            var trimmed = [] as Array<String>;
+            for (var i = start; i < _recentMessages.size(); i += 1) {
+                trimmed.add(_recentMessages[i]);
+            }
+            _recentMessages = trimmed;
         }
     }
 

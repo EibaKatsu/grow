@@ -12,12 +12,18 @@ class growView extends WatchUi.SimpleDataField {
     private const DEBUG_SLOPE_LOG = false;
     private const DIST_EVENT_TOLERANCE_KM = 0.02f;
     private const DIST_SPECIAL_MARKERS = [5.0f, 10.0f, 15.0f, 20.0f, 21.1f, 25.0f, 30.0f, 35.0f, 40.0f, 42.2f];
+    private const MIN_MESSAGE_UPDATE_MS = 5000;
+    private const RECENT_MESSAGE_WINDOW = 5;
+    private const CATEGORY_PICK_ATTEMPTS = 6;
 
     private var _lastAltitude as Float?;
     private var _lastDistance as Float?;
     private var _slopeState as String;
     private var _lastKmEvent as Float;
     private var _lastSeenDistanceKm as Float?;
+    private var _displayMessage as String;
+    private var _lastMessageUpdateMs as Number?;
+    private var _recentMessages;
 
     function initialize() {
         SimpleDataField.initialize();
@@ -27,6 +33,9 @@ class growView extends WatchUi.SimpleDataField {
         _slopeState = "FL";
         _lastKmEvent = 0.0f;
         _lastSeenDistanceKm = null;
+        _displayMessage = "Grow";
+        _lastMessageUpdateMs = null;
+        _recentMessages = [];
     }
 
     private function zoneFromHeartRate(heartRate as Number?) as String {
@@ -174,20 +183,46 @@ class growView extends WatchUi.SimpleDataField {
         return "PRAISE";
     }
 
-    private function pickCategoryMessage(category as String, stateKey as String) as String {
+    private function pickCategoryMessage(category as String, stateKey as String, variant as Number) as String {
+        var idx = variant % 3;
         switch (category) {
             case "FIXED":
                 return pickFixedMessage(stateKey);
             case "FUNNY":
-                return "Keep it light";
+                if (idx == 0) {
+                    return "Keep it light";
+                } else if (idx == 1) {
+                    return "Relax your face";
+                }
+                return "Smile and flow";
             case "SALT":
-                return "Stay sharp";
+                if (idx == 0) {
+                    return "Stay sharp";
+                } else if (idx == 1) {
+                    return "Check your pace";
+                }
+                return "Lock the rhythm";
             case "ALCOHOL":
-                return "Water first";
+                if (idx == 0) {
+                    return "Water first";
+                } else if (idx == 1) {
+                    return "No bar legs";
+                }
+                return "Sip and move";
             case "TOXIC":
-                return "No excuses";
+                if (idx == 0) {
+                    return "No excuses";
+                } else if (idx == 1) {
+                    return "You can do more";
+                }
+                return "Stay in it";
             case "PRAISE":
-                return "Strong work";
+                if (idx == 0) {
+                    return "Strong work";
+                } else if (idx == 1) {
+                    return "Great control";
+                }
+                return "Nice discipline";
         }
 
         return pickFixedMessage(stateKey);
@@ -237,6 +272,87 @@ class growView extends WatchUi.SimpleDataField {
         return null;
     }
 
+    private function buildMessagePickSeed(info as Activity.Info, stateKey as String) as Number {
+        var seed = stateKeyCode(stateKey) * 13;
+        if (info.timerTime != null) {
+            seed += (info.timerTime / 1000).toNumber();
+        }
+        if (info.currentHeartRate != null) {
+            seed += info.currentHeartRate;
+        }
+        if (info.elapsedDistance != null) {
+            seed += (info.elapsedDistance / 20.0f).toNumber();
+        }
+        return seed;
+    }
+
+    private function isRecentMessage(message as String) as Boolean {
+        for (var i = 0; i < _recentMessages.size(); i += 1) {
+            if (_recentMessages[i] == message) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private function rememberMessage(message as String) as Void {
+        if (_recentMessages.size() > 0) {
+            var lastIndex = _recentMessages.size() - 1;
+            if (_recentMessages[lastIndex] == message) {
+                return;
+            }
+        }
+
+        _recentMessages.add(message);
+        while (_recentMessages.size() > RECENT_MESSAGE_WINDOW) {
+            _recentMessages.remove(0);
+        }
+    }
+
+    private function pickNonDuplicateCategoryMessage(
+        info as Activity.Info,
+        stateKey as String,
+        category as String
+    ) as String {
+        var seed = buildMessagePickSeed(info, stateKey);
+        for (var i = 0; i < CATEGORY_PICK_ATTEMPTS; i += 1) {
+            var candidate = pickCategoryMessage(category, stateKey, seed + i);
+            if (!isRecentMessage(candidate) || candidate == _displayMessage) {
+                return candidate;
+            }
+        }
+
+        return pickCategoryMessage(category, stateKey, seed);
+    }
+
+    private function applyMessageUpdate(
+        candidate as String,
+        nowMs as Number?,
+        forceUpdate as Boolean
+    ) as String {
+        if (!forceUpdate && _lastMessageUpdateMs != null && nowMs != null) {
+            if ((nowMs - _lastMessageUpdateMs) < MIN_MESSAGE_UPDATE_MS) {
+                return _displayMessage;
+            }
+        }
+
+        if (!forceUpdate && candidate != _displayMessage && isRecentMessage(candidate)) {
+            return _displayMessage;
+        }
+
+        var changed = candidate != _displayMessage;
+        if (changed) {
+            _displayMessage = candidate;
+            rememberMessage(candidate);
+        }
+
+        if ((changed || forceUpdate || _lastMessageUpdateMs == null) && nowMs != null) {
+            _lastMessageUpdateMs = nowMs;
+        }
+
+        return _displayMessage;
+    }
+
     private function pickFixedMessage(stateKey as String) as String {
         switch (stateKey) {
             case "UP_Z1":
@@ -275,15 +391,17 @@ class growView extends WatchUi.SimpleDataField {
     }
 
     function compute(info as Activity.Info) as Numeric or Duration or String or Null {
-        // Step 5: DIST event has priority over category message.
+        // Step 6: prevent fast flicker and avoid recent duplicate messages.
+        var nowMs = info.timerTime;
         var zone = zoneFromHeartRate(info.currentHeartRate);
         var slope = updateSlopeState(info.altitude, info.elapsedDistance);
         var stateKey = buildStateKey(slope, zone);
         var distMessage = detectDistanceEvent(info.elapsedDistance);
         if (distMessage != null) {
-            return distMessage;
+            return applyMessageUpdate(distMessage, nowMs, true);
         }
         var category = pickTrainingCategory(info, stateKey);
-        return pickCategoryMessage(category, stateKey);
+        var categoryMessage = pickNonDuplicateCategoryMessage(info, stateKey, category);
+        return applyMessageUpdate(categoryMessage, nowMs, false);
     }
 }

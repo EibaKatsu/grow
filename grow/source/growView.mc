@@ -10,10 +10,14 @@ class growView extends WatchUi.SimpleDataField {
     private const SLOPE_DOWN_THRESHOLD = -0.03f;
     private const MIN_DISTANCE_DELTA_METERS = 20.0f;
     private const DEBUG_SLOPE_LOG = false;
+    private const DIST_EVENT_TOLERANCE_KM = 0.02f;
+    private const DIST_SPECIAL_MARKERS = [5.0f, 10.0f, 15.0f, 20.0f, 21.1f, 25.0f, 30.0f, 35.0f, 40.0f, 42.2f];
 
     private var _lastAltitude as Float?;
     private var _lastDistance as Float?;
     private var _slopeState as String;
+    private var _lastKmEvent as Float;
+    private var _lastSeenDistanceKm as Float?;
 
     function initialize() {
         SimpleDataField.initialize();
@@ -21,6 +25,8 @@ class growView extends WatchUi.SimpleDataField {
         _lastAltitude = null;
         _lastDistance = null;
         _slopeState = "FL";
+        _lastKmEvent = 0.0f;
+        _lastSeenDistanceKm = null;
     }
 
     private function zoneFromHeartRate(heartRate as Number?) as String {
@@ -187,6 +193,50 @@ class growView extends WatchUi.SimpleDataField {
         return pickFixedMessage(stateKey);
     }
 
+    private function buildDistanceEventMessage(markerKm as Float) as String {
+        return "DIST " + markerKm.toString() + "km";
+    }
+
+    private function detectDistanceEvent(elapsedDistance as Float?) as String or Null {
+        if (elapsedDistance == null) {
+            return null;
+        }
+
+        var distanceKm = elapsedDistance / 1000.0f;
+        if (_lastSeenDistanceKm != null && (distanceKm + DIST_EVENT_TOLERANCE_KM) < _lastSeenDistanceKm) {
+            // Activity restarted or playback seeked back.
+            _lastKmEvent = 0.0f;
+        }
+        _lastSeenDistanceKm = distanceKm;
+
+        var limit = distanceKm + DIST_EVENT_TOLERANCE_KM;
+        var crossedMarker = _lastKmEvent;
+
+        var maxWholeKm = limit.toNumber();
+        var km = 1;
+        while (km <= maxWholeKm) {
+            var marker = km.toFloat();
+            if (marker > _lastKmEvent && marker <= limit && marker > crossedMarker) {
+                crossedMarker = marker;
+            }
+            km += 1;
+        }
+
+        for (var i = 0; i < DIST_SPECIAL_MARKERS.size(); i += 1) {
+            var specialMarker = DIST_SPECIAL_MARKERS[i];
+            if (specialMarker > _lastKmEvent && specialMarker <= limit && specialMarker > crossedMarker) {
+                crossedMarker = specialMarker;
+            }
+        }
+
+        if (crossedMarker > _lastKmEvent) {
+            _lastKmEvent = crossedMarker;
+            return buildDistanceEventMessage(crossedMarker);
+        }
+
+        return null;
+    }
+
     private function pickFixedMessage(stateKey as String) as String {
         switch (stateKey) {
             case "UP_Z1":
@@ -225,10 +275,14 @@ class growView extends WatchUi.SimpleDataField {
     }
 
     function compute(info as Activity.Info) as Numeric or Duration or String or Null {
-        // Step 4: choose category by Training ratio, then pick message.
+        // Step 5: DIST event has priority over category message.
         var zone = zoneFromHeartRate(info.currentHeartRate);
         var slope = updateSlopeState(info.altitude, info.elapsedDistance);
         var stateKey = buildStateKey(slope, zone);
+        var distMessage = detectDistanceEvent(info.elapsedDistance);
+        if (distMessage != null) {
+            return distMessage;
+        }
         var category = pickTrainingCategory(info, stateKey);
         return pickCategoryMessage(category, stateKey);
     }

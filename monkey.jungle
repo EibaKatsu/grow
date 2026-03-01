@@ -1,1 +1,8 @@
 project.manifest = grow/manifest.xml
+
+# Default mode: Training
+base.excludeAnnotations = raceMode
+
+# Mode overlays:
+# - monkey.training.jungle keeps training mode
+# - monkey.race.jungle switches to race mode

@@ -462,6 +462,8 @@ JPN「もう5キロやん、早っ！」
 - まず `messages_jpn.mc` をこのAGENT.mdの 11章から生成する
 - 他言語は 9章の指針に従い、短文・軽口で翻訳して同じキーに格納する
 - 表示文字数制限に備え、描画時に簡易トリム（末尾 `…`）を実装する
+- モード切替はソース編集ではなく Jungle で行う（`monkey.training.jungle` / `monkey.race.jungle`）
+- `base.excludeAnnotations` で `trainingMode` と `raceMode` のどちらかを除外してビルドする
 
 ---
 

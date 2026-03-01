@@ -12,7 +12,9 @@ class growView extends WatchUi.SimpleDataField {
     private const DEBUG_SLOPE_LOG = false;
     private const DIST_EVENT_TOLERANCE_KM = 0.02f;
     private const DIST_SPECIAL_MARKERS = [5.0f, 10.0f, 15.0f, 20.0f, 21.1f, 25.0f, 30.0f, 35.0f, 40.0f, 42.2f];
-    private const MIN_MESSAGE_UPDATE_MS = 5000;
+    private const TRAINING_MIN_UPDATE_MS = 5000;
+    private const RACE_MIN_UPDATE_BASE_MS = 20000;
+    private const RACE_MIN_UPDATE_SPAN_MS = 10000;
     private const RECENT_MESSAGE_WINDOW = 5;
     private const CATEGORY_PICK_ATTEMPTS = 6;
     private const DISPLAY_MAX_CHARS = 18;
@@ -26,6 +28,7 @@ class growView extends WatchUi.SimpleDataField {
     private var _displayMessage as String;
     private var _lastMessageUpdateMs as Number?;
     private var _recentMessages as Array<String>;
+    private var _pendingDistMessage as String?;
 
     function initialize() {
         SimpleDataField.initialize();
@@ -38,6 +41,7 @@ class growView extends WatchUi.SimpleDataField {
         _displayMessage = "Grow";
         _lastMessageUpdateMs = null;
         _recentMessages = [] as Array<String>;
+        _pendingDistMessage = null;
     }
 
     private function zoneFromHeartRate(heartRate as Number?) as String {
@@ -185,11 +189,85 @@ class growView extends WatchUi.SimpleDataField {
         return "PRAISE";
     }
 
+    private function pickRaceCategory(info as Activity.Info, stateKey as String) as String {
+        // Step 8 ratio target:
+        // FIXED 55 / PRAISE 25 / WARN 15 / FUNNY 5
+        var bucketSource = stateKeyCode(stateKey) * 11;
+
+        if (info.timerTime != null) {
+            bucketSource += (info.timerTime / 10000).toNumber();
+        }
+        if (info.currentHeartRate != null) {
+            bucketSource += info.currentHeartRate;
+        }
+        if (info.elapsedDistance != null) {
+            bucketSource += (info.elapsedDistance / 40.0f).toNumber();
+        }
+
+        var bucket = bucketSource % 100;
+        if (bucket < 55) {
+            return "FIXED";
+        } else if (bucket < 80) {
+            return "PRAISE";
+        } else if (bucket < 95) {
+            return "WARN";
+        }
+
+        return "FUNNY";
+    }
+
+    (:trainingMode)
+    private function getAppMode() as String {
+        return "TRAINING";
+    }
+
+    (:raceMode)
+    private function getAppMode() as String {
+        return "RACE";
+    }
+
+    private function isRaceMode() as Boolean {
+        return getAppMode() == "RACE";
+    }
+
+    private function isRaceWarningState(stateKey as String) as Boolean {
+        switch (stateKey) {
+            case "UP_Z5":
+            case "FL_Z5":
+            case "DN_Z5":
+   
+            case "DN_Z4":
+                return true;
+        }
+
+        return false;
+    }
+
+    private function raceMinUpdateMs(stateKey as String) as Number {
+        var offset = (stateKeyCode(stateKey) * 137) % (RACE_MIN_UPDATE_SPAN_MS + 1);
+        return RACE_MIN_UPDATE_BASE_MS + offset;
+    }
+
+    private function minUpdateMsForMode(stateKey as String) as Number {
+        if (isRaceMode()) {
+            return raceMinUpdateMs(stateKey);
+        }
+
+        return TRAINING_MIN_UPDATE_MS;
+    }
+
     private function pickCategoryMessage(category as String, stateKey as String, variant as Number) as String {
         var idx = variant % 3;
         switch (category) {
             case "FIXED":
                 return pickFixedMessage(stateKey);
+            case "WARN":
+                if (idx == 0) {
+                    return "Ease up now";
+                } else if (idx == 1) {
+                    return "Too hot, reset";
+                }
+                return "Control first";
             case "FUNNY":
                 if (idx == 0) {
                     return "Keep it light";
@@ -349,12 +427,13 @@ class growView extends WatchUi.SimpleDataField {
     private function applyMessageUpdate(
         candidate as String,
         nowMs as Number?,
-        forceUpdate as Boolean
+        forceUpdate as Boolean,
+        minUpdateMs as Number
     ) as String {
         var displayCandidate = trimForDisplay(candidate);
 
         if (!forceUpdate && _lastMessageUpdateMs != null && nowMs != null) {
-            if ((nowMs - _lastMessageUpdateMs) < MIN_MESSAGE_UPDATE_MS) {
+            if ((nowMs - _lastMessageUpdateMs) < minUpdateMs) {
                 return _displayMessage;
             }
         }
@@ -414,17 +493,38 @@ class growView extends WatchUi.SimpleDataField {
     }
 
     function compute(info as Activity.Info) as Numeric or Duration or String or Null {
-        // Step 7: keep dedupe/interval behavior and trim long messages for display.
+        // Step 8: Race mode adds WARN priority and slower update cadence.
         var nowMs = System.getTimer();
         var zone = zoneFromHeartRate(info.currentHeartRate);
         var slope = updateSlopeState(info.altitude, info.elapsedDistance);
         var stateKey = buildStateKey(slope, zone);
+        var minUpdateMs = minUpdateMsForMode(stateKey);
         var distMessage = detectDistanceEvent(info.elapsedDistance);
-        if (distMessage != null) {
-            return applyMessageUpdate(distMessage, nowMs, true);
+
+        if (isRaceMode()) {
+            if (distMessage != null) {
+                _pendingDistMessage = distMessage;
+            }
+
+            if (isRaceWarningState(stateKey)) {
+                var warnMessage = pickNonDuplicateCategoryMessage(info, stateKey, "WARN");
+                return applyMessageUpdate(warnMessage, nowMs, true, minUpdateMs);
+            }
+
+            if (_pendingDistMessage != null) {
+                var pendingDistMessage = _pendingDistMessage;
+                _pendingDistMessage = null;
+                return applyMessageUpdate(pendingDistMessage, nowMs, true, minUpdateMs);
+            }
+        } else if (distMessage != null) {
+            return applyMessageUpdate(distMessage, nowMs, true, minUpdateMs);
         }
+
         var category = pickTrainingCategory(info, stateKey);
+        if (isRaceMode()) {
+            category = pickRaceCategory(info, stateKey);
+        }
         var categoryMessage = pickNonDuplicateCategoryMessage(info, stateKey, category);
-        return applyMessageUpdate(categoryMessage, nowMs, false);
+        return applyMessageUpdate(categoryMessage, nowMs, false, minUpdateMs);
     }
 }

@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Monkey C: Build Training",
+      "type": "process",
+      "command": "java",
+      "args": [
+        "-Xms1g",
+        "-Dfile.encoding=UTF-8",
+        "-Dapple.awt.UIElement=true",
+        "-jar",
+        "${env:CONNECTIQ_HOME}/bin/monkeybrains.jar",
+        "-o",
+        "bin/grow.prg",
+        "-f",
+        "${workspaceFolder}/monkey.jungle;${workspaceFolder}/monkey.training.jungle",
+        "-y",
+        "${workspaceFolder}/.vscode/developer_key",
+        "-d",
+        "fr255_sim",
+        "-w"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Monkey C: Build Race",
+      "type": "process",
+      "command": "java",
+      "args": [
+        "-Xms1g",
+        "-Dfile.encoding=UTF-8",
+        "-Dapple.awt.UIElement=true",
+        "-jar",
+        "${env:CONNECTIQ_HOME}/bin/monkeybrains.jar",
+        "-o",
+        "bin/grow.prg",
+        "-f",
+        "${workspaceFolder}/monkey.jungle;${workspaceFolder}/monkey.race.jungle",
+        "-y",
+        "${workspaceFolder}/.vscode/developer_key",
+        "-d",
+        "fr255_sim",
+        "-w"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      "problemMatcher": []
+    }
+  ]
+}

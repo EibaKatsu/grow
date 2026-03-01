@@ -462,3 +462,43 @@ JPN「もう5キロやん、早っ！」
 - まず `messages_jpn.mc` をこのAGENT.mdの 11章から生成する
 - 他言語は 9章の指針に従い、短文・軽口で翻訳して同じキーに格納する
 - 表示文字数制限に備え、描画時に簡易トリム（末尾 `…`）を実装する
+
+---
+
+## 13. 開発順序（最小単位実装・都度確認）
+### 13.1 開発原則
+1. 一度に作り込まない。1機能ずつ実装して毎回動作確認する。
+2. `Training版` を先に完成させ、`Race版` は差分実装で後追いする。
+3. 各ステップで `Build Current Project` 成功、`fr255_sim` で表示確認、ログに例外なしを完了条件にする。
+4. 失敗時は直前ステップの成功状態まで戻してから原因修正し、次ステップへ進む。
+5. 1ステップごとにスコープを固定し、未着手機能は明示的に後工程へ回す。
+
+### 13.2 実装ステップ順
+- Step 0: Data Field最小表示（`Grow` 等の固定文字）を維持して土台確認。
+- Step 1: 心拍取得とZ1–Z5判定のみ実装。表示は `Zx` 固定フォーマット。
+- Step 2: 坂判定（UP/FL/DN）のみ追加。表示は `UP Z3` 形式。
+- Step 3: `state_key` 生成と `FIXED` カテゴリ1本選択を実装。
+- Step 4: `Training` カテゴリ比率（FUNNY/SALT/ALCOHOL/TOXIC/FIXED/PRAISE）を実装。
+- Step 5: 距離イベント（1kmごと + 特別節目）を実装し、DIST割り込み表示を追加。
+- Step 6: 重複回避（直近N件）と最短更新間隔（5秒）を実装。
+- Step 7: 表示文字数トリム（末尾 `…`）を実装。
+- Step 8: `Race` 差分（比率、WARN優先、更新間隔20–30秒）を実装。
+- Step 9: 多言語配列（ENG/SPA/FRE/DEU）を同キー構造で追加。
+
+### 13.3 各ステップのDoD（Definition of Done）
+- 実装対象外機能を混ぜない。
+- 手動確認項目を1つ以上追加または更新する。
+- 変更理由を1行で残す（コミットメッセージまたは作業メモ）。
+
+### 13.4 内部インターフェース方針（実装単位）
+- `computeContext(info) -> {hrZone, slopeState, stateKey, distanceKm}`
+- `pickMessage(mode, context, now) -> String`
+- `shouldFireDistanceEvent(distanceKm, lastKmEvent) -> Boolean`
+
+### 13.5 テストケースと確認シナリオ
+1. Step 1: 心拍値境界（59%, 60%, 70%, 80%, 90%）でゾーンが期待どおり。
+2. Step 2: `grade` が `+0.03/-0.03` 境界でUP/DN/FLが期待どおり。
+3. Step 5: `distance_km` が閾値初回通過時のみDIST発火し、二重発火しない。
+4. Step 6: 同一文言が直近N件内で再選択されない。
+5. Step 8: Raceで危険警告がDISTより優先される。
+6. 全Step共通: ビルド成功、表示崩れなし、クラッシュなし。

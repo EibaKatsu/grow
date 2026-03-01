@@ -114,6 +114,79 @@ class growView extends WatchUi.SimpleDataField {
         return slope + "_" + zone;
     }
 
+    private function stateKeyCode(stateKey as String) as Number {
+        switch (stateKey) {
+            case "UP_Z1": return 1;
+            case "UP_Z2": return 2;
+            case "UP_Z3": return 3;
+            case "UP_Z4": return 4;
+            case "UP_Z5": return 5;
+            case "FL_Z1": return 6;
+            case "FL_Z2": return 7;
+            case "FL_Z3": return 8;
+            case "FL_Z4": return 9;
+            case "FL_Z5": return 10;
+            case "DN_Z1": return 11;
+            case "DN_Z2": return 12;
+            case "DN_Z3": return 13;
+            case "DN_Z4": return 14;
+            case "DN_Z5": return 15;
+        }
+
+        return 0;
+    }
+
+    private function pickTrainingCategory(info as Activity.Info, stateKey as String) as String {
+        // Step 4 ratio target:
+        // FUNNY 25 / SALT 20 / ALCOHOL 20 / TOXIC 10 / FIXED 15 / PRAISE 10
+        var bucketSource = stateKeyCode(stateKey) * 7;
+
+        if (info.timerTime != null) {
+            // Change selection roughly every 10s to keep output readable.
+            bucketSource += (info.timerTime / 10000).toNumber();
+        }
+        if (info.currentHeartRate != null) {
+            bucketSource += info.currentHeartRate;
+        }
+        if (info.elapsedDistance != null) {
+            bucketSource += (info.elapsedDistance / 25.0f).toNumber();
+        }
+
+        var bucket = bucketSource % 100;
+        if (bucket < 25) {
+            return "FUNNY";
+        } else if (bucket < 45) {
+            return "SALT";
+        } else if (bucket < 65) {
+            return "ALCOHOL";
+        } else if (bucket < 75) {
+            return "TOXIC";
+        } else if (bucket < 90) {
+            return "FIXED";
+        }
+
+        return "PRAISE";
+    }
+
+    private function pickCategoryMessage(category as String, stateKey as String) as String {
+        switch (category) {
+            case "FIXED":
+                return pickFixedMessage(stateKey);
+            case "FUNNY":
+                return "Keep it light";
+            case "SALT":
+                return "Stay sharp";
+            case "ALCOHOL":
+                return "Water first";
+            case "TOXIC":
+                return "No excuses";
+            case "PRAISE":
+                return "Strong work";
+        }
+
+        return pickFixedMessage(stateKey);
+    }
+
     private function pickFixedMessage(stateKey as String) as String {
         switch (stateKey) {
             case "UP_Z1":
@@ -152,10 +225,11 @@ class growView extends WatchUi.SimpleDataField {
     }
 
     function compute(info as Activity.Info) as Numeric or Duration or String or Null {
-        // Step 3: generate state_key and choose one FIXED message.
+        // Step 4: choose category by Training ratio, then pick message.
         var zone = zoneFromHeartRate(info.currentHeartRate);
         var slope = updateSlopeState(info.altitude, info.elapsedDistance);
         var stateKey = buildStateKey(slope, zone);
-        return pickFixedMessage(stateKey);
+        var category = pickTrainingCategory(info, stateKey);
+        return pickCategoryMessage(category, stateKey);
     }
 }

@@ -15,6 +15,8 @@ class growView extends WatchUi.SimpleDataField {
     private const MIN_MESSAGE_UPDATE_MS = 5000;
     private const RECENT_MESSAGE_WINDOW = 5;
     private const CATEGORY_PICK_ATTEMPTS = 6;
+    private const DISPLAY_MAX_CHARS = 18;
+    private const DISPLAY_ELLIPSIS = "...";
 
     private var _lastAltitude as Float?;
     private var _lastDistance as Float?;
@@ -286,6 +288,19 @@ class growView extends WatchUi.SimpleDataField {
         return seed;
     }
 
+    private function trimForDisplay(message as String) as String {
+        if (message.length() <= DISPLAY_MAX_CHARS) {
+            return message;
+        }
+
+        var keepChars = DISPLAY_MAX_CHARS - DISPLAY_ELLIPSIS.length();
+        if (keepChars <= 0) {
+            return DISPLAY_ELLIPSIS;
+        }
+
+        return message.substring(0, keepChars) + DISPLAY_ELLIPSIS;
+    }
+
     private function isRecentMessage(message as String) as Boolean {
         for (var i = 0; i < _recentMessages.size(); i += 1) {
             if (_recentMessages[i] == message) {
@@ -322,7 +337,8 @@ class growView extends WatchUi.SimpleDataField {
         var seed = buildMessagePickSeed(info, stateKey);
         for (var i = 0; i < CATEGORY_PICK_ATTEMPTS; i += 1) {
             var candidate = pickCategoryMessage(category, stateKey, seed + i);
-            if (!isRecentMessage(candidate) || candidate == _displayMessage) {
+            var displayCandidate = trimForDisplay(candidate);
+            if (!isRecentMessage(displayCandidate) || displayCandidate == _displayMessage) {
                 return candidate;
             }
         }
@@ -335,20 +351,22 @@ class growView extends WatchUi.SimpleDataField {
         nowMs as Number?,
         forceUpdate as Boolean
     ) as String {
+        var displayCandidate = trimForDisplay(candidate);
+
         if (!forceUpdate && _lastMessageUpdateMs != null && nowMs != null) {
             if ((nowMs - _lastMessageUpdateMs) < MIN_MESSAGE_UPDATE_MS) {
                 return _displayMessage;
             }
         }
 
-        if (!forceUpdate && candidate != _displayMessage && isRecentMessage(candidate)) {
+        if (!forceUpdate && displayCandidate != _displayMessage && isRecentMessage(displayCandidate)) {
             return _displayMessage;
         }
 
-        var changed = candidate != _displayMessage;
+        var changed = displayCandidate != _displayMessage;
         if (changed) {
-            _displayMessage = candidate;
-            rememberMessage(candidate);
+            _displayMessage = displayCandidate;
+            rememberMessage(displayCandidate);
         }
 
         if ((changed || forceUpdate || _lastMessageUpdateMs == null) && nowMs != null) {
@@ -396,8 +414,8 @@ class growView extends WatchUi.SimpleDataField {
     }
 
     function compute(info as Activity.Info) as Numeric or Duration or String or Null {
-        // Step 6: prevent fast flicker and avoid recent duplicate messages.
-        var nowMs = info.timerTime;
+        // Step 7: keep dedupe/interval behavior and trim long messages for display.
+        var nowMs = System.getTimer();
         var zone = zoneFromHeartRate(info.currentHeartRate);
         var slope = updateSlopeState(info.altitude, info.elapsedDistance);
         var stateKey = buildStateKey(slope, zone);
